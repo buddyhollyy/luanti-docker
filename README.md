@@ -18,8 +18,12 @@ with [Mineclonia](https://content.luanti.org/packages/ryvnf/mineclonia/),
 
 ## Setting it up
 
-Clone this repo, then run every step below inside the folder it created.
-You need Docker, Docker Compose, curl, unzip and git.
+You need Docker, Docker Compose, curl, unzip and git, and your user has to
+be in the `docker` group. Start by cloning this repo; every step below runs
+inside the folder it creates.
+
+    git clone https://github.com/buddyhollyy/luanti-docker
+    cd luanti-docker
 
 ### Step 1 — get the three projects this stack uses
 
@@ -81,11 +85,21 @@ not need rebuilding for launcher changes.
 it: the admin name, what the server is called, and what new players are
 allowed to do.
 
+    mkdir -p config
     cp minetest.conf.example config/minetest.conf
 
-Your own `config/minetest.conf` is never committed to git.
+Your own `config/minetest.conf` is never committed to git, so the `config`
+folder does not exist until you make it.
 
 ### Step 5 — start everything
+
+The server runs as user and group 30000 inside its container, and writes
+the world to `data/`. Make that folder yourself first and give it to that
+user, otherwise Docker creates it owned by root and the server cannot save
+anything:
+
+    mkdir -p data/.minetest/worlds/world www
+    sudo chown -R 30000:30000 data
 
     docker compose up -d
 
@@ -93,8 +107,8 @@ Your own `config/minetest.conf` is never committed to git.
 
 Open the site in a browser. `/` is the launcher, `/mineclonia` starts the
 game by itself, and `/antichunk/` is the map. Desktop Luanti clients can
-connect on UDP port 30000 if you uncomment the `ports` lines in
-`compose.yml`.
+connect on `<your server>` port 30000, which `compose.yml` publishes over
+UDP.
 
 ## The seed map
 
