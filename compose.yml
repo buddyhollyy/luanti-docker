@@ -1,0 +1,31 @@
+services:
+  luanti:
+    image: ghcr.io/luanti-org/luanti:5.16.1
+    restart: unless-stopped
+    command: --gameid mineclonia --config /etc/minetest/minetest.conf
+    volumes:
+      - ./config:/etc/minetest:ro
+      - ./data:/var/lib/minetest
+      - ./games:/var/lib/minetest/.minetest/games:ro
+    ports:
+      - "30000:30000/udp"
+
+  proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile.proxy
+    restart: unless-stopped
+    network_mode: "service:luanti"
+    depends_on: [luanti]
+
+  web:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./www:/usr/share/nginx/html:ro
+      - ./antichunk:/usr/share/nginx/antichunk:ro
+      - ./data/.minetest/worlds/world:/usr/share/nginx/world:ro
+    depends_on: [luanti]

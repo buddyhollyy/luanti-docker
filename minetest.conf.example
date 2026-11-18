@@ -1,0 +1,18 @@
+# Luanti server settings for this stack.
+# Copy this into place before the first run:
+#   cp minetest.conf.example config/minetest.conf
+# Every available setting is listed here:
+#   https://github.com/luanti-org/luanti/blob/master/builtin/settingtypes.txt
+
+# A client connecting with this name is the server admin and gets every
+# privilege. Leave blank for no admin, or put your own player name here.
+name =
+
+# Shown to players when they join, and in the server list.
+server_name = Mineclonia server
+server_description = Mineclonia on Luanti, in Docker
+
+# What a new player gets on first join. This is Luanti's own default.
+# Widen it only if you know who can reach your server, for example:
+#   default_privs = interact, shout, fly, fast
+default_privs = interact, shout

@@ -1,0 +1,19 @@
+# Your own server settings: copied from the example, never committed
+config/minetest.conf
+# World, players and password hashes
+data/
+# Built browser client, rebuilt from minetest-wasm
+www/
+# Game content, installed separately
+games/
+# Upstream code with its own repo
+minetest-wasm/
+antichunk/
+# Local backups and logs
+*.bak
+*.bak2
+*.bak3
+*.log
+mineclonia.zip
+proxy-src/
+/autostart.patch

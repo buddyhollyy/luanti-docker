@@ -1,0 +1,40 @@
+diff --git a/app/src/components/StartScreen/index.tsx b/app/src/components/StartScreen/index.tsx
+index dda7c6b..d68efeb 100644
+--- a/app/src/components/StartScreen/index.tsx
++++ b/app/src/components/StartScreen/index.tsx
+@@ -3,6 +3,10 @@ import { useExecutePrefetch, useMinetestConsole, usePrefetchData, useStorageMana
+ import { type GameId, type GameOptions } from '../../App';
+ import { GAME_IDS, PROXIES, SUPPORTED_LANGUAGES } from '../../utils/common';
+ 
++// Auto-start: on the /mineclonia URL, skip this screen once per page load.
++const isAutoStartUrl = window.location.pathname.startsWith('/mineclonia');
++let autoStartAttempted = false;
++
+ // Define game modes
+ type GameMode = 'local' | 'host' | 'join';
+ 
+@@ -28,7 +32,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStartGame, updateGameOption
+   const [selectedProxy, _setSelectedProxy] = useState<number>(parseInt(localStorage.getItem('luanti_wasm_selected_proxy') || '0'));
+   const [selectedStorage, setSelectedStorage] = useState<string>(currentOptions.storagePolicy);
+   const [isPreloading, setIsPreloading] = useState(true);
+-  const [selectedGameId, setSelectedGameId] = useState<GameId>('mineclone2');
++  const [selectedGameId, setSelectedGameId] = useState<GameId>(isAutoStartUrl ? 'mineclonia' : 'mineclone2');
+   const [gameMode, setGameMode] = useState<GameMode>('local');
+   const [joinCodeString, setJoinCodeString] = useState<string>('');
+   const [joinCode, setJoinCode] = useState<string>('');
+@@ -272,6 +276,15 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStartGame, updateGameOption
+   }
+   const isStandalone = window.location.href.includes('standalone');
+ 
++  // On /mineclonia: press Start Game once Mineclonia has finished pre-loading
++  useEffect(() => {
++    if (!isAutoStartUrl || autoStartAttempted || isPreloading) {
++      return;
++    }
++    autoStartAttempted = true;
++    handleStartGame();
++  }, [isPreloading]);
++
+   const smallStartGameButton = (
+     <div className="text-center">
+       <button 
