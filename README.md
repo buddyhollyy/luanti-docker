@@ -3,7 +3,7 @@
 A small Compose stack that runs:
 - [Luanti](https://www.luanti.org/) server
 with [Mineclonia](https://content.luanti.org/packages/ryvnf/mineclonia/),
-- Luanti browser client (Anyone can play without installing anything!)
+- Luanti browser client: [minetest-wasm](https://github.com/Kaesual/minetest-wasm) (Anyone can play without installing anything!)
 - Luanti/Mineclonia seedmap: [Antichunk](https://github.com/buddyhollyy/Antichunk)
 
 ## What runs
