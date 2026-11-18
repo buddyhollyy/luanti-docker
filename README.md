@@ -43,28 +43,37 @@ Mineclonia is the game the server runs. It has to end up in
 
 ### Step 3 — build the browser client
 
-`minetest-wasm` is Luanti compiled to run in a web browser. Out of the box
-its page opens a launcher screen, where you pick a game from a list and
-press "Start Game" before anything happens.
+`minetest-wasm` is Luanti compiled to run in a web browser. There are two
+halves to it: the engine itself, compiled with emscripten, and the launcher
+page in front of it. One script builds both.
 
-The patch in `patches/` adds a shortcut. After it, the site has two
-addresses:
+Apply the patch first, so the launcher is built with it already in place.
+Without the patch the site has one address, a launcher screen where you
+pick a game from a list and press "Start Game". With it there are two:
 
-- `/` — the normal launcher screen, unchanged.
+- `/` — that same launcher screen, unchanged.
 - `/mineclonia` — picks Mineclonia, waits for it to load and presses Start
   for you, so the page opens straight on Luanti's main menu.
 
-Apply it, build, and copy the result into `www/`, which is the folder nginx
-serves:
-
     cd minetest-wasm
     git apply ../patches/minetest-wasm-autostart.patch
-    cd app
-    ./docker.sh npm run build
-    cp -a build/. ../../www/
-    cd ../..
 
-The build runs in a container, so you do not need Node installed.
+Now build. This is the long step: it compiles Luanti inside a container,
+and on the first run it installs emscripten too. Your user needs to be in
+the `docker` group and to own this folder.
+
+    ./build_all_with_docker.sh
+
+The finished client lands in `minetest-wasm/www/`. Copy it into the `www/`
+folder this stack serves:
+
+    cd ..
+    mkdir -p www
+    cp -a minetest-wasm/www/. www/
+
+If you later change only the launcher, `./update_build_static.sh` rebuilds
+that part on its own, and you copy it across the same way. The engine does
+not need rebuilding for launcher changes.
 
 ### Step 4 — set your server options
 
