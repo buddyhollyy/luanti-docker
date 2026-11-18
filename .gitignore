@@ -13,6 +13,7 @@ antichunk/
 *.bak
 *.bak2
 *.bak3
+*.bak-*
 *.log
 mineclonia.zip
 proxy-src/

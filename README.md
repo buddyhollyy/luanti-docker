@@ -110,6 +110,11 @@ game by itself, and `/antichunk/` is the map. Desktop Luanti clients can
 connect on `<your server>` port 30000, which `compose.yml` publishes over
 UDP.
 
+On `/` and `/mineclonia`, a Seed Map button in the bottom-right corner
+opens Antichunk in a new tab. It hides while you play and shows in the
+menus, the inventory and the pause menu. nginx adds it to the page
+(`maplink.js`, `maplink.png`), so the client needs no rebuild.
+
 ## The seed map
 
 Antichunk shows your world as a map. From the seed alone it can draw the
