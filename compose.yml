@@ -2,7 +2,7 @@ services:
   luanti:
     image: ghcr.io/luanti-org/luanti:5.16.1
     restart: unless-stopped
-    command: --gameid mineclonia --config /etc/minetest/minetest.conf
+    command: --gameid mineclonia --config /etc/minetest/minetest.conf --world /var/lib/minetest/.minetest/worlds/world
     volumes:
       - ./config:/etc/minetest:ro
       - ./data:/var/lib/minetest

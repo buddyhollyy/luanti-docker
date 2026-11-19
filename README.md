@@ -149,6 +149,30 @@ The map page itself stays public. Only those two files are restricted, so
 visitors still see the terrain from the seed, just not where anyone has
 been.
 
+## Moving worlds between computers
+
+Two scripts move the server world to and from a .zip that Luanti on any
+computer can open. Keep Mineclonia at the same version on both sides.
+
+Take the server world home (safe while the server runs):
+
+    sudo ./export-world
+
+It saves `~/server-world-<date>.zip`. Unzip it into your Luanti `worlds`
+folder (main menu, About, Open User Data Directory). In Start Game, tick
+Host Server and use your server name to keep your inventory and position.
+
+Put a world from your computer on the server: zip its folder, copy the zip
+over, then:
+
+    sudo ./import-world MyWorld.zip
+
+It stops the server, swaps the world in and starts everything again. The
+old world stays in `data/.minetest/worlds/world.bak-<date-time>`. The
+server keeps its own accounts, passwords, bans and mods, and a singleplayer
+inventory goes to the `name` in `config/minetest.conf`. The world must be a
+Mineclonia world using the default sqlite3 backend.
+
 ## Gotcha
 
 The proxy shares the luanti container's network namespace, so recreating or

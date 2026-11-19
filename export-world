@@ -1,0 +1,35 @@
+#!/bin/sh
+# Pack the server world into a .zip that any computer's Luanti can use:
+# unzip it into Luanti's worlds folder. Safe while the server is running.
+# Usage: sudo ./export-world [output.zip]
+set -eu
+[ "$(id -u)" = 0 ] || { echo "Run it with sudo: sudo $0 $*"; exit 1; }
+
+user=${SUDO_USER:-root}
+home=$(getent passwd "$user" | cut -d: -f6)
+day=$(date +%F)
+out=$(realpath -m "${1:-$home/server-world-$day.zip}")
+
+cd "$(dirname "$0")"
+src=data/.minetest/worlds/world
+[ -f "$src/world.mt" ] || { echo "No world found at $src"; exit 1; }
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+dst=$tmp/server-world-$day
+cp -a "$src" "$dst"
+rm -f "$dst"/*.sqlite-journal "$dst"/*.sqlite-wal "$dst"/*.sqlite-shm
+
+# Consistent copies of the databases while the server keeps writing.
+for db in "$src"/*.sqlite; do
+  sqlite3 "$db" ".backup '$dst/${db##*/}'"
+done
+
+# The name Luanti shows in its world list.
+sed -i '/^world_name *=/d' "$dst/world.mt"
+echo "world_name = Server world $day" >> "$dst/world.mt"
+
+rm -f "$out"
+(cd "$tmp" && python3 -m zipfile -c "$out" "server-world-$day")
+chown "$user": "$out"
+echo "Saved $out ($(du -h "$out" | cut -f1))"

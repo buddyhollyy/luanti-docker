@@ -1,0 +1,82 @@
+#!/bin/sh
+# Replace the server world with a world from a .zip: one made by
+# export-world, or a world folder zipped on any computer.
+# The current world is kept as data/.minetest/worlds/world.bak-<date-time>.
+# Usage: sudo ./import-world file.zip
+set -eu
+[ "$(id -u)" = 0 ] || { echo "Run it with sudo: sudo $0 $*"; exit 1; }
+[ $# = 1 ] && [ -f "$1" ] || { echo "Usage: sudo $0 file.zip"; exit 1; }
+zip=$(realpath "$1")
+
+cd "$(dirname "$0")"
+worlds=data/.minetest/worlds
+old=$worlds/world
+tmp=$(mktemp -d "$worlds/.import.XXXXXX")
+trap 'rm -rf "$tmp"' EXIT
+
+python3 -m zipfile -e "$zip" "$tmp/x"
+found=$(find "$tmp/x" -name world.mt -not -path '*/__MACOSX/*')
+[ "$(echo "$found" | grep -c .)" = 1 ] ||
+  { echo "The zip must hold exactly one world (one world.mt)."; exit 1; }
+new=$(dirname "$found")
+mt=$new/world.mt
+
+grep -Eq '^gameid *= *mineclonia *$' "$mt" ||
+  { echo "This world is not a Mineclonia world."; exit 1; }
+[ -f "$new/map.sqlite" ] ||
+  { echo "No map.sqlite: the world must use the sqlite3 backend."; exit 1; }
+[ "$(sqlite3 "$new/map.sqlite" 'PRAGMA quick_check;')" = ok ] ||
+  { echo "map.sqlite is damaged."; exit 1; }
+
+# Keep the server's own accounts, passwords and bans.
+if [ -f "$old/auth.sqlite" ]; then
+  sqlite3 "$old/auth.sqlite" ".backup '$new/auth.sqlite'"
+  rm -f "$new/auth.txt"
+  sed -i '/^auth_backend *=/d' "$mt"
+  echo "auth_backend = sqlite3" >> "$mt"
+fi
+[ -f "$old/ipban.txt" ] && cp "$old/ipban.txt" "$new/ipban.txt"
+
+# Keep the server's mods switched on.
+[ -f "$old/world.mt" ] && grep -E '^load_mod_[^ =]+ *= *true' "$old/world.mt" |
+while IFS= read -r line; do
+  key=${line%%[ =]*}
+  grep -q "^$key *=" "$mt" || { echo "$line" >> "$mt"; echo "Enabled server mod ${key#load_mod_}"; }
+done
+
+# Warn about mods the world wants that the server doesn't have.
+grep -E '^load_mod_[^ =]+ *= *true' "$mt" | sed 's/^load_mod_\([^ =]*\).*/\1/' |
+while IFS= read -r mod; do
+  [ -d "data/.minetest/mods/$mod" ] || [ -d "$new/worldmods/$mod" ] ||
+    echo "Warning: mod $mod is not installed here; its blocks will show as unknown"
+done
+
+# A singleplayer world saves you as "singleplayer"; hand that to the admin name.
+admin=$(sed -n 's/^name *= *//p' config/minetest.conf | tr -d ' \r')
+if [ -n "$admin" ] && [ -f "$new/players.sqlite" ]; then
+  sp=$(sqlite3 "$new/players.sqlite" "SELECT count(*) FROM player WHERE name='singleplayer';")
+  ad=$(sqlite3 "$new/players.sqlite" "SELECT count(*) FROM player WHERE name='$admin';")
+  if [ "$sp" = 1 ] && [ "$ad" = 0 ]; then
+    sqlite3 "$new/players.sqlite" "BEGIN;
+UPDATE player SET name='$admin' WHERE name='singleplayer';
+UPDATE player_metadata SET player='$admin' WHERE player='singleplayer';
+UPDATE player_inventories SET player='$admin' WHERE player='singleplayer';
+UPDATE player_inventory_items SET player='$admin' WHERE player='singleplayer';
+COMMIT;"
+    echo "Gave the singleplayer inventory and position to $admin"
+  fi
+fi
+
+docker compose stop luanti
+bak=world.bak-$(date +%Y%m%d-%H%M%S)
+mv "$old" "$worlds/$bak"
+mv "$new" "$old"
+chown -R 30000:30000 "$old"
+docker compose up -d luanti
+sleep 5
+state=$(docker inspect -f '{{.State.Status}}' "$(docker compose ps -aq luanti)")
+[ "$state" = running ] || {
+  echo "Luanti is $state, not running. Check: docker compose logs --tail 40 luanti"
+  echo "The previous world is in $worlds/$bak"; exit 1; }
+docker compose up -d --force-recreate proxy web
+echo "Imported. The previous world is in $worlds/$bak"
