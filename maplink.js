@@ -5,6 +5,7 @@
   var a = document.createElement('a');
   a.href = '/antichunk/';
   a.target = '_blank';
+  a.tabIndex = -1;
   a.title = 'Open the seed map in a new tab';
   a.style.cssText = 'position:fixed;right:10px;bottom:10px;' +
     'z-index:9999;display:flex;align-items:center;gap:8px;' +
