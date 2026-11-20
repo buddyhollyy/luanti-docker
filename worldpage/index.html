@@ -32,6 +32,10 @@ td.act { text-align:right; white-space:nowrap; }
 td.act > * { margin-left:6px; }
 .mute { color:var(--mute); }
 .row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+#setup { border-left:4px solid var(--warn); }
+#setup ul { margin:0; padding-left:20px; } #setup li { margin-bottom:10px; }
+code { font:12px ui-monospace, monospace; background:var(--bg); border:1px solid var(--line);
+  border-radius:4px; padding:2px 5px; overflow-wrap:anywhere; }
 #status { display:none; border-left:4px solid var(--accent); }
 #status.failed { border-left-color:var(--warn); }
 #status.working { border-left-color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, var(--card)); }
@@ -52,10 +56,15 @@ pre { white-space:pre-wrap; font-size:12px; color:var(--mute); margin:8px 0 0; m
 <body>
 <main>
 <h1>Server World</h1>
-<p class="sub">Only reachable from your home network and VPN.</p>
+<p class="sub">Keep this page off the internet: anyone who can open it can replace the world.</p>
+
+<section id="setup" hidden><h2>Setup needed</h2><ul id="setup-list"></ul>
+  <p class="mute" style="margin-bottom:0">Run these on the server, in the stack folder. The README section
+  "The world page" has the details.</p></section>
 
 <section id="status"><h2 id="st-title"></h2><div id="st-msg"></div>
-  <div class="bar" id="st-bar" hidden><i></i></div><pre id="st-log"></pre></section>
+  <div class="bar" id="st-bar" hidden><i></i></div><pre id="st-log"></pre>
+  <button id="cancel" hidden style="margin-top:10px">Cancel</button></section>
 
 <section>
   <h2>Current world</h2>
@@ -163,7 +172,7 @@ function render(d) {
   add("Last backup", when(d.last_backup));
 
   const b = $("backups"); b.replaceChildren();
-  if (!d.backups.length) b.append(el("tr", {}, el("td", {className:"mute", textContent:"No backups yet."})));
+  if (!d.backups.length) b.append(el("tr", {}, el("td", {className:"mute", textContent:"None found. The page looks for world-YYYY-MM-DD.tar.gz files in the BACKUP_DIR folder set in .env."})));
   for (const x of d.backups) {
     const r = el("button", {className:"danger", textContent:"Restore", disabled:busy});
     r.onclick = () => act("api/restore", x.name,
@@ -183,6 +192,17 @@ function render(d) {
       el("td", {}, "Replaced " + x.when, el("div", {className:"mute", textContent:size(x.size)})),
       el("td", {className:"act"}, el("a", {className:"btn", href:"download/old/" + x.name, textContent:"Download"}), del)));
   }
+
+  const issues = [];
+  const tip = (text, cmd) => issues.push(el("li", {}, text, cmd ? el("div", {}, el("code", {textContent:cmd})) : ""));
+  if (!d.inbox_ok) tip("Upload, restore and delete are off: the inbox folder is missing or not writable.",
+    "mkdir -p inbox && sudo chown 30000:30000 inbox");
+  if (d.job.waiting > 120) tip("A change has waited " + Math.round(d.job.waiting / 60) +
+    " minutes. The world-inbox cron job doesn't seem to be installed. Install it, or press Cancel below.",
+    'echo "* * * * * root $PWD/world-inbox" | sudo tee /etc/cron.d/luanti-world-inbox');
+  $("setup-list").replaceChildren(...issues);
+  $("setup").hidden = !issues.length;
+  $("cancel").hidden = !(busy && d.job.waiting > 0);
 
   const s = $("status"), j = d.job;
   if (uploading) {
@@ -208,6 +228,11 @@ async function load() {
   catch (e) { /* server restarting; try again on the next tick */ }
 }
 
+$("cancel").onclick = async () => {
+  try { await post("api/cancel", "", {}); } catch (e) { alert(e.message); }
+  $("status").style.display = "none"; document.title = "Server World";
+  load();
+};
 $("file").onchange = () => { $("up").disabled = busy || !$("file").files.length; };
 $("up").onclick = async () => {
   const f = $("file").files[0];

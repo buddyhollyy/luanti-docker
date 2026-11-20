@@ -86,6 +86,10 @@ def list_old():
 def job_state():
     st = {"busy": os.path.exists(INBOX + "/request")
           or os.path.exists(INBOX + "/running")}
+    try:  # a request nobody picked up: the cron job isn't running
+        st["waiting"] = int(time.time() - os.stat(INBOX + "/request").st_mtime)
+    except OSError:
+        st["waiting"] = 0
     try:
         with open(INBOX + "/status", encoding="utf-8", errors="replace") as fh:
             lines = fh.read().splitlines()
@@ -116,6 +120,8 @@ def info():
         "backups": backups,
         "old": list_old(),
         "job": job_state(),
+        "inbox_ok": os.access(INBOX, os.W_OK),
+        "backups_ok": os.path.isdir(BACKUPS),
     }
 
 
@@ -233,6 +239,18 @@ class Handler(BaseHTTPRequestHandler):
                 self.headers.get("Sec-Fetch-Site", "same-origin") != "same-origin":
             return self.send(403, {"error": "forbidden"})
         path = self.path.split("?", 1)[0]
+        if path == "/api/cancel":
+            # Only a request still waiting; one that has started can't be stopped.
+            if not os.path.exists(INBOX + "/request"):
+                return self.send(409, {"error": "Nothing is waiting, or it has already started."})
+            for f in ("request", "upload.zip"):
+                try:
+                    os.remove(os.path.join(INBOX, f))
+                except OSError:
+                    pass
+            return self.send(200, {"cancelled": True})
+        if not os.access(INBOX, os.W_OK):
+            return self.send(503, {"error": "The inbox folder is not set up. See the note at the top of the page."})
         if job_state()["busy"]:
             return self.send(409, {"error": "Another change is still running."})
         if path == "/api/upload":

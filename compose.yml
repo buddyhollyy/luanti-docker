@@ -32,9 +32,11 @@ services:
       - ./data/.minetest/worlds/world:/usr/share/nginx/world:ro
     depends_on: [luanti]
 
-  # The /world page. It can read the worlds and backups, and can only write
-  # to inbox/; the root cron job world-inbox carries out what it asks for.
+  # The /world page. Off unless you turn it on (README, "The world page").
+  # It can read the worlds and backups, and can only write to inbox/; the
+  # root cron job world-inbox carries out what it asks for.
   world:
+    profiles: [world]
     image: python:3.14-alpine
     restart: unless-stopped
     user: "30000:30000"
