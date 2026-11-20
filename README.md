@@ -149,6 +149,25 @@ The map page itself stays public. Only those two files are restricted, so
 visitors still see the terrain from the seed, just not where anyone has
 been.
 
+## Nightly backups
+
+`backup-world` saves the world to `world-YYYY-MM-DD.tar.gz` while the
+server runs. It keeps the newest 7, plus 4 older Sunday ones, so you can
+go back to any day this week or any week this month. That is up to 11
+files; a 13 MB backup takes about 145 MB. Run it by root at 4 AM:
+
+    echo "0 4 * * * root $PWD/backup-world" | sudo tee /etc/cron.d/luanti-backup
+
+It needs `sqlite3` (`sudo apt install sqlite3`). Backups go to `backups/`
+unless `.env` says otherwise. To keep more or fewer, add to `.env`:
+
+    BACKUP_DIR=/home/you/luanti-backups
+    KEEP_DAILY=7
+    KEEP_WEEKLY=4
+
+Set `KEEP_WEEKLY=0` for dailies only. To restore one, use the world page
+or `sudo ./import-world backups/world-YYYY-MM-DD.tar.gz`.
+
 ## Moving worlds between computers
 
 Two scripts move the server world to and from a .zip that Luanti on any

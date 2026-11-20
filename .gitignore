@@ -10,6 +10,7 @@ games/
 minetest-wasm/
 antichunk/
 # Local backups and logs
+backups/
 *.bak
 *.bak2
 *.bak3
