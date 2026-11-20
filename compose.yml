@@ -32,6 +32,24 @@ services:
       - ./data/.minetest/worlds/world:/usr/share/nginx/world:ro
     depends_on: [luanti]
 
+  # Nightly world backups (README, "Nightly backups"). Reads the world,
+  # writes only to the backup folder; uses the host's time zone.
+  backup:
+    image: python:3.14-alpine
+    restart: unless-stopped
+    command: ["python", "-u", "/app/backup-world", "--nightly"]
+    environment:
+      WORLD: /worlds/world
+      BACKUP_DIR: /backups
+      BACKUP_TIME: ${BACKUP_TIME:-04:00}
+      KEEP_DAILY: ${KEEP_DAILY:-7}
+      KEEP_WEEKLY: ${KEEP_WEEKLY:-4}
+    volumes:
+      - ./backup-world:/app/backup-world:ro
+      - ./data/.minetest/worlds:/worlds:ro
+      - ${BACKUP_DIR:-./backups}:/backups
+      - /etc/localtime:/etc/localtime:ro
+
   # The /world page. Off unless you turn it on (README, "The world page").
   # It can read the worlds and backups, and can only write to inbox/; the
   # root cron job world-inbox carries out what it asks for.

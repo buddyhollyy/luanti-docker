@@ -15,6 +15,8 @@ with [Mineclonia](https://content.luanti.org/packages/ryvnf/mineclonia/),
   server. Shares the luanti container's network namespace.
 - **web** — nginx. Serves the browser client, Antichunk, and proxies
   `/proxy` to the bridge.
+- **backup** — saves the world every night and keeps the last few weeks
+  (see Nightly backups).
 
 ## Setting it up
 
@@ -151,22 +153,24 @@ been.
 
 ## Nightly backups
 
-`backup-world` saves the world to `world-YYYY-MM-DD.tar.gz` while the
-server runs. It keeps the newest 7, plus 4 older Sunday ones, so you can
-go back to any day this week or any week this month. That is up to 11
-files; a 13 MB backup takes about 145 MB. Run it by root at 4 AM:
+The `backup` service saves the world to `world-YYYY-MM-DD.tar.gz` every
+night at 4 AM, host time, while the server runs. It keeps the newest 7,
+plus 4 older Sunday ones, so you can go back to any day this week or any
+week this month. That is up to 11 files; a 13 MB backup takes about
+145 MB. Nothing to set up: it starts with the rest of the stack.
 
-    echo "0 4 * * * root $PWD/backup-world" | sudo tee /etc/cron.d/luanti-backup
-
-It needs `sqlite3` (`sudo apt install sqlite3`). Backups go to `backups/`
-unless `.env` says otherwise. To keep more or fewer, add to `.env`:
+Backups go to `backups/` in the stack folder. To change that or how many
+are kept, add any of these to `.env`, then `docker compose up -d backup`:
 
     BACKUP_DIR=/home/you/luanti-backups
+    BACKUP_TIME=04:00
     KEEP_DAILY=7
     KEEP_WEEKLY=4
 
-Set `KEEP_WEEKLY=0` for dailies only. To restore one, use the world page
-or `sudo ./import-world backups/world-YYYY-MM-DD.tar.gz`.
+Set `KEEP_WEEKLY=0` for dailies only. Watch it with
+`docker compose logs backup`. Take one now with `sudo ./backup-world`.
+To restore one, use the world page or
+`sudo ./import-world backups/world-YYYY-MM-DD.tar.gz`.
 
 ## Moving worlds between computers
 
