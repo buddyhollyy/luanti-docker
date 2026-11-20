@@ -168,7 +168,10 @@ are kept, add any of these to `.env`, then `docker compose up -d backup`:
     KEEP_WEEKLY=4
 
 Set `KEEP_WEEKLY=0` for dailies only. Watch it with
-`docker compose logs backup`. Take one now with `sudo ./backup-world`.
+`docker compose logs backup`. Take one now with:
+
+    docker compose exec backup python /app/backup-world
+
 To restore one, use the world page or
 `sudo ./import-world backups/world-YYYY-MM-DD.tar.gz`.
 
@@ -176,6 +179,8 @@ To restore one, use the world page or
 
 Two scripts move the server world to and from a .zip that Luanti on any
 computer can open. Keep Mineclonia at the same version on both sides.
+They run on the host, not in a container, and need `sqlite3` and
+`python3` there (`sudo apt install sqlite3 python3`).
 
 Take the server world home (safe while the server runs):
 
@@ -220,19 +225,29 @@ using your own address range and host:
         proxy_pass http://192.0.2.10:8081;
     }
 
-The page cannot stop or start anything itself. It leaves requests in
-`inbox/`, and `world-inbox`, run by root from cron once a minute, carries
-them out with `import-world`, so a change starts within a minute of the
-click. To turn it on, in the stack folder, with your own backup folder
-(where your nightly `world-YYYY-MM-DD.tar.gz` files go):
+To turn it on, in the stack folder:
 
     echo "COMPOSE_PROFILES=world" >> .env
-    echo "BACKUP_DIR=$HOME/luanti-backups" >> .env
     mkdir -p inbox && sudo chown 30000:30000 inbox
-    echo "* * * * * root $PWD/world-inbox" | sudo tee /etc/cron.d/luanti-world-inbox
     docker compose up -d
 
-If something is missing, the page says what and shows the command to fix it.
+Then add the restore job below. If something is missing, the page says
+what and shows the command to fix it.
+
+### The restore job
+
+The page cannot stop or start the server itself. Upload, Restore and
+Delete only leave a request in `inbox/`. `world-inbox` is the job that
+carries it out: it runs `import-world`, which stops Luanti, swaps the
+world in and starts everything again. Doing that needs Docker, and the
+page's container has none on purpose, so root runs `world-inbox` from
+cron once a minute. A click starts within a minute. Add it once, in the
+stack folder:
+
+    echo "* * * * * root $PWD/world-inbox" | sudo tee /etc/cron.d/luanti-world-inbox
+
+It does nothing unless a request is waiting. It needs `sqlite3` and
+`python3` on the host, like `import-world`. Its result shows on the page.
 
 ## Gotcha
 

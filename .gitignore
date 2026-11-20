@@ -21,3 +21,4 @@ proxy-src/
 /autostart.patch
 inbox/
 .env
+__pycache__/
