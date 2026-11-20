@@ -18,3 +18,5 @@ antichunk/
 mineclonia.zip
 proxy-src/
 /autostart.patch
+inbox/
+.env

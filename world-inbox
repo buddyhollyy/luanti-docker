@@ -1,0 +1,47 @@
+#!/bin/sh
+# Carries out what the /world page asks for: import an upload, restore a
+# nightly backup, or delete a replaced world. The page itself can only
+# write to inbox/; this runs as root from cron, once a minute:
+#   * * * * * root /home/<you>/docker/luanti/world-inbox
+set -u
+cd "$(dirname "$(realpath "$0")")"
+[ -f inbox/request ] || [ -f inbox/running ] || exit 0
+exec 9>/run/luanti-world-inbox.lock
+flock -n 9 || exit 0
+# A leftover "running" with no job holding the lock: clear it.
+[ -f inbox/request ] || { rm -f inbox/running; exit 0; }
+
+backups=$(sed -n 's/^BACKUP_DIR=//p' .env 2>/dev/null | tail -1)
+backups=${backups:-./backups}
+read -r action name < inbox/request || true
+mv inbox/request inbox/running
+log=inbox/log
+: > "$log"
+
+finish() {
+  { echo "$1"; echo "$2"; cat "$log"; } > inbox/status.part
+  chown 30000:30000 inbox/status.part
+  mv inbox/status.part inbox/status
+  rm -f inbox/running inbox/upload.zip "$log"
+  exit 0
+}
+{ echo running; echo "$action $name"; } > inbox/status
+
+case "$action $name" in
+  "import upload.zip")
+    [ -f inbox/upload.zip ] || finish failed "The upload is missing."
+    if ./import-world inbox/upload.zip >> "$log" 2>&1
+    then finish done "Uploaded world is live."
+    else finish failed "Upload was not imported."; fi ;;
+  restore\ world-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].tar.gz)
+    [ -f "$backups/$name" ] || finish failed "No backup named $name."
+    if ./import-world "$backups/$name" >> "$log" 2>&1
+    then finish done "Backup $name is live."
+    else finish failed "Backup $name was not restored."; fi ;;
+  delete\ world.bak-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9])
+    d=data/.minetest/worlds/$name
+    [ -d "$d" ] && [ ! -L "$d" ] || finish failed "No world named $name."
+    rm -rf "$d" && finish done "Deleted $name."
+    finish failed "Could not delete $name." ;;
+  *) finish failed "Unknown request." ;;
+esac

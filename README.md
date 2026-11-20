@@ -98,8 +98,8 @@ the world to `data/`. Make that folder yourself first and give it to that
 user, otherwise Docker creates it owned by root and the server cannot save
 anything:
 
-    mkdir -p data/.minetest/worlds/world www
-    sudo chown -R 30000:30000 data
+    mkdir -p data/.minetest/worlds/world www inbox
+    sudo chown -R 30000:30000 data inbox
 
     docker compose up -d
 
@@ -158,7 +158,8 @@ Take the server world home (safe while the server runs):
 
     sudo ./export-world
 
-It saves `~/server-world-<date>.zip`. Unzip it into your Luanti `worlds`
+It saves `~/server-world-<date>.zip`. The world page below has the same
+thing as a button. Unzip it into your Luanti `worlds`
 folder (main menu, About, Open User Data Directory). In Start Game, tick
 Host Server and use your server name to keep your inventory and position.
 
@@ -171,7 +172,40 @@ It stops the server, swaps the world in and starts everything again. The
 old world stays in `data/.minetest/worlds/world.bak-<date-time>`. The
 server keeps its own accounts, passwords, bans and mods, and a singleplayer
 inventory goes to the `name` in `config/minetest.conf`. The world must be a
-Mineclonia world using the default sqlite3 backend.
+Mineclonia world using the default sqlite3 backend. It also takes a nightly
+backup `.tar.gz` in place of the zip.
+
+## The world page
+
+`/world/` does all of this from a browser: download the world, upload a
+world to replace it, download or restore a nightly backup, and download or
+delete the old worlds that replacing leaves behind. It also shows the seed,
+map generator, size, accounts and when the last backup ran.
+
+Anyone who can open the page can replace your world, so never let the
+internet reach it. Lock it on the proxy in front of the stack. With nginx,
+using your own address range and host:
+
+    location /world {
+        allow 10.0.0.0/8;
+        deny all;
+        client_max_body_size 4g;
+        proxy_request_buffering off;
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+        proxy_pass http://192.0.2.10:8081;
+    }
+
+The page cannot stop or start anything itself. It leaves requests in
+`inbox/`, and `world-inbox`, run by root from cron once a minute, carries
+them out with `import-world`. So a change starts within a minute of the
+click. Set it up once, with your own backup folder (where the nightly
+`world-YYYY-MM-DD.tar.gz` files go):
+
+    echo "BACKUP_DIR=$HOME/luanti-backups" > .env
+    mkdir -p inbox && sudo chown 30000:30000 inbox
+    echo "* * * * * root $PWD/world-inbox" | sudo tee /etc/cron.d/luanti-world-inbox
+    docker compose up -d world
 
 ## Gotcha
 

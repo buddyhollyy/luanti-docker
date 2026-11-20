@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Server World</title>
+<style>
+:root { color-scheme: light dark; --bg:#f6f6f4; --card:#fff; --fg:#1d1d1b; --mute:#6b6b66;
+  --line:#deded8; --accent:#2f6f3e; --warn:#a3361f; }
+@media (prefers-color-scheme: dark) { :root { --bg:#161715; --card:#20211f; --fg:#ececea;
+  --mute:#9a9a94; --line:#33342f; --accent:#6fbf7f; --warn:#e2785f; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--fg);
+  font:15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width:760px; margin:0 auto; padding:24px 16px 48px; }
+h1 { font-size:22px; margin:0 0 4px; }
+h2 { font-size:16px; margin:0 0 12px; }
+.sub { color:var(--mute); margin:0 0 20px; }
+section { background:var(--card); border:1px solid var(--line); border-radius:10px;
+  padding:16px; margin-bottom:16px; }
+dl { display:grid; grid-template-columns:max-content 1fr; gap:6px 16px; margin:0; }
+dt { color:var(--mute); } dd { margin:0; overflow-wrap:anywhere; }
+button, .btn { font:inherit; border:1px solid var(--line); background:var(--bg); color:var(--fg);
+  border-radius:7px; padding:6px 12px; cursor:pointer; text-decoration:none; display:inline-block; }
+button.primary, .btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+@media (prefers-color-scheme: dark) { button.primary, .btn.primary { color:#10140f; } }
+button.danger { color:var(--warn); border-color:var(--warn); }
+button:disabled { opacity:.5; cursor:default; }
+table { width:100%; border-collapse:collapse; }
+td { padding:8px 4px; border-top:1px solid var(--line); vertical-align:middle; }
+td.act { text-align:right; white-space:nowrap; }
+td.act > * { margin-left:6px; }
+.mute { color:var(--mute); }
+.row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+#status { display:none; border-left:4px solid var(--accent); }
+#status.failed { border-left-color:var(--warn); }
+#status.working { border-left-color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, var(--card)); }
+#st-title { display:flex; align-items:center; gap:10px; }
+.spin { width:18px; height:18px; border:3px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; flex:none; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.bar { height:6px; border-radius:3px; background:color-mix(in srgb, var(--accent) 20%, transparent);
+  overflow:hidden; margin-top:12px; }
+.bar > i { display:block; height:100%; width:30%; background:var(--accent); border-radius:3px;
+  animation:slide 1.2s ease-in-out infinite; }
+.bar.pct > i { animation:none; transition:width .2s; }
+@keyframes slide { from { margin-left:-30%; } to { margin-left:100%; } }
+pre { white-space:pre-wrap; font-size:12px; color:var(--mute); margin:8px 0 0; max-height:200px; overflow:auto; }
+@media (max-width:520px) { td.act { white-space:normal; } td.act > * { margin:4px 0 0 6px; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Server World</h1>
+<p class="sub">Only reachable from your home network and VPN.</p>
+
+<section id="status"><h2 id="st-title"></h2><div id="st-msg"></div>
+  <div class="bar" id="st-bar" hidden><i></i></div><pre id="st-log"></pre></section>
+
+<section>
+  <h2>Current world</h2>
+  <dl id="facts"><dt>Loading…</dt><dd></dd></dl>
+  <p class="row" style="margin:14px 0 0">
+    <a class="btn primary" href="download/current">Download world (.zip)</a>
+    <span class="mute">Unzip into Luanti's worlds folder.</span>
+  </p>
+</section>
+
+<section>
+  <h2>Replace with a world from your computer</h2>
+  <p class="mute" style="margin-top:0">Zip a Mineclonia world folder and pick the .zip. The server
+  restarts for about 10 seconds. Accounts, bans and mods stay; the current world is kept below.</p>
+  <div class="row">
+    <input type="file" id="file" accept=".zip,application/zip">
+    <button class="primary" id="up" disabled>Upload and replace</button>
+    <span id="up-msg" class="mute"></span>
+  </div>
+</section>
+
+<section>
+  <h2>Nightly backups</h2>
+  <table id="backups"></table>
+</section>
+
+<section>
+  <h2>Replaced worlds</h2>
+  <p class="mute" style="margin-top:0">Kept each time a world is replaced. Nothing deletes them automatically.</p>
+  <table id="old"></table>
+</section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let busy = false, uploading = false, lastJob = null;
+
+function size(b) {
+  const u = ["B","KB","MB","GB"]; let i = 0;
+  while (b >= 1024 && i < 3) { b /= 1024; i++; }
+  return (i ? b.toFixed(1) : b) + " " + u[i];
+}
+function when(t) {
+  if (!t) return "never";
+  return new Date(t * 1000).toLocaleString([], {dateStyle:"medium", timeStyle:"short"});
+}
+function el(tag, props, ...kids) {
+  const e = Object.assign(document.createElement(tag), props || {});
+  for (const k of kids) e.append(k);
+  return e;
+}
+async function post(url, body, headers) {
+  const r = await fetch(url, {method:"POST", body, headers:Object.assign({"X-World":"1"}, headers)});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+  return j;
+}
+function working(title, msg, pct) {
+  const s = $("status"), first = s.className !== "working" || s.style.display !== "block";
+  s.style.display = "block"; s.className = "working";
+  $("st-title").replaceChildren(el("span", {className:"spin"}), title);
+  $("st-msg").textContent = msg;
+  const bar = $("st-bar"); bar.hidden = false;
+  bar.classList.toggle("pct", pct != null);
+  bar.firstChild.style.width = pct != null ? pct + "%" : "";
+  document.title = "Working… · Server World";
+  if (first) window.scrollTo({top:0, behavior:"smooth"});
+}
+function upload(f) {
+  return new Promise((ok, fail) => {
+    const x = new XMLHttpRequest();
+    x.open("POST", "api/upload");
+    x.setRequestHeader("X-World", "1");
+    x.setRequestHeader("Content-Type", "application/zip");
+    x.upload.onprogress = e => { if (e.lengthComputable) {
+      const p = Math.round(e.loaded / e.total * 100);
+      working("Uploading " + p + "%", f.name + " (" + size(f.size) + ")", p);
+    } };
+    x.onload = () => {
+      let j = {}; try { j = JSON.parse(x.responseText); } catch (e) {}
+      x.status < 300 ? ok(j) : fail(new Error(j.error || ("HTTP " + x.status)));
+    };
+    x.onerror = () => fail(new Error("Upload failed: connection lost."));
+    x.send(f);
+  });
+}
+async function act(url, name, question) {
+  if (!confirm(question)) return;
+  working("Working…", "Sending the request…");
+  try { await post(url, JSON.stringify({name}), {"Content-Type":"application/json"}); }
+  catch (e) { $("status").style.display = "none"; document.title = "Server World"; alert(e.message); }
+  load();
+}
+
+function render(d) {
+  busy = d.job.busy;
+  const f = $("facts"); f.replaceChildren();
+  const add = (k, v) => f.append(el("dt", {textContent:k}), el("dd", {textContent:v}));
+  add("Size", size(d.size));
+  add("Seed", d.seed || "unknown");
+  add("Map generator", d.mapgen || "unknown");
+  add("Game", d.gameid || "unknown");
+  add("Accounts", d.accounts ?? "unknown");
+  add("Last logins", d.recent.map(r => r.name + " (" + when(r.time) + ")").join(", ") || "none");
+  add("Last backup", when(d.last_backup));
+
+  const b = $("backups"); b.replaceChildren();
+  if (!d.backups.length) b.append(el("tr", {}, el("td", {className:"mute", textContent:"No backups yet."})));
+  for (const x of d.backups) {
+    const r = el("button", {className:"danger", textContent:"Restore", disabled:busy});
+    r.onclick = () => act("api/restore", x.name,
+      "Replace the current world with the backup from " + when(x.time) + "?\n\nThe server restarts and the current world is kept under Replaced worlds.");
+    b.append(el("tr", {},
+      el("td", {}, when(x.time), el("div", {className:"mute", textContent:size(x.size)})),
+      el("td", {className:"act"}, el("a", {className:"btn", href:"download/backup/" + x.name, textContent:"Download"}), r)));
+  }
+
+  const o = $("old"); o.replaceChildren();
+  if (!d.old.length) o.append(el("tr", {}, el("td", {className:"mute", textContent:"None."})));
+  for (const x of d.old) {
+    const del = el("button", {className:"danger", textContent:"Delete", disabled:busy});
+    del.onclick = () => act("api/delete", x.name,
+      "Delete the world replaced on " + x.when + " for good?");
+    o.append(el("tr", {},
+      el("td", {}, "Replaced " + x.when, el("div", {className:"mute", textContent:size(x.size)})),
+      el("td", {className:"act"}, el("a", {className:"btn", href:"download/old/" + x.name, textContent:"Download"}), del)));
+  }
+
+  const s = $("status"), j = d.job;
+  if (uploading) {
+    /* the upload progress owns the status box */
+  } else if (busy) {
+    working(j.state === "running" ? "Working…" : "Waiting to start…",
+      j.state === "running" ? "The game disconnects briefly while the server restarts."
+                            : "Starts within a minute. The game disconnects briefly while the server restarts.");
+    $("st-log").textContent = j.state === "running" ? j.log : "";
+  } else if (j.state && (lastJob === null || j.time > lastJob || s.style.display === "block")) {
+    s.style.display = "block"; s.className = j.state === "failed" ? "failed" : "";
+    $("st-bar").hidden = true; document.title = "Server World";
+    $("st-title").textContent = j.state === "failed" ? "Last change failed" : "Last change finished";
+    $("st-msg").textContent = j.message + " (" + when(j.time) + ")";
+    $("st-log").textContent = j.log;
+  }
+  lastJob = j.time || 0;
+  $("up").disabled = busy || uploading || !$("file").files.length;
+}
+
+async function load() {
+  try { render(await (await fetch("api/info", {cache:"no-store"})).json()); }
+  catch (e) { /* server restarting; try again on the next tick */ }
+}
+
+$("file").onchange = () => { $("up").disabled = busy || !$("file").files.length; };
+$("up").onclick = async () => {
+  const f = $("file").files[0];
+  if (!f || !confirm("Replace the server world with " + f.name + "?\n\nThe server restarts and the current world is kept under Replaced worlds.")) return;
+  $("up").disabled = true; $("up-msg").textContent = ""; uploading = true;
+  working("Uploading 0%", f.name + " (" + size(f.size) + ")", 0);
+  try { await upload(f); $("file").value = ""; working("Waiting to start…", "Starts within a minute."); }
+  catch (e) { $("up-msg").textContent = e.message; $("status").style.display = "none"; document.title = "Server World"; }
+  uploading = false;
+  load();
+};
+
+load();
+setInterval(load, 3000);
+</script>
+</body>
+</html>

@@ -1,8 +1,9 @@
 #!/bin/sh
-# Replace the server world with a world from a .zip: one made by
-# export-world, or a world folder zipped on any computer.
+# Replace the server world with a world from a .zip (one made by
+# export-world, or a world folder zipped on any computer) or from a
+# nightly backup .tar.gz.
 # The current world is kept as data/.minetest/worlds/world.bak-<date-time>.
-# Usage: sudo ./import-world file.zip
+# Usage: sudo ./import-world file.zip|backup.tar.gz
 set -eu
 [ "$(id -u)" = 0 ] || { echo "Run it with sudo: sudo $0 $*"; exit 1; }
 [ $# = 1 ] && [ -f "$1" ] || { echo "Usage: sudo $0 file.zip"; exit 1; }
@@ -14,7 +15,10 @@ old=$worlds/world
 tmp=$(mktemp -d "$worlds/.import.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT
 
-python3 -m zipfile -e "$zip" "$tmp/x"
+case $zip in
+  *.tar.gz|*.tgz) mkdir "$tmp/x" && tar -xzf "$zip" -C "$tmp/x" --no-same-owner ;;
+  *) python3 -m zipfile -e "$zip" "$tmp/x" ;;
+esac
 found=$(find "$tmp/x" -name world.mt -not -path '*/__MACOSX/*')
 [ "$(echo "$found" | grep -c .)" = 1 ] ||
   { echo "The zip must hold exactly one world (one world.mt)."; exit 1; }
